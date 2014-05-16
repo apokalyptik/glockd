@@ -15,20 +15,25 @@ Quick Start
 
 Option 1 (compile on demand)
 ----------------------------
+```
   cd glockd
   go run ./*.go -pidfile my.pid -port 9999 -ws 9998
+```
 
 Option 2 (compile and then run)
 -------------------------------
+```
   cd glockd
   go build
   ./glockd --pidfile my.pid -port 9999 -ws 9998
+```
 
 Quick Start Testing
 ===================
-
+```
   cd tester
   go run test.go --host 127.0.0.1:9999
+```
 
 Connecting to a glockd server
 =============================
