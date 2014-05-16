@@ -1,11 +1,11 @@
 package main
 
-import(
+import (
+	"bufio"
 	"fmt"
+	"log"
 	"net"
 	"os"
-	"bufio"
-	"log"
 )
 
 const (
@@ -13,51 +13,84 @@ const (
 )
 
 var unixConnectionCounter chan string
+
 func mindUnixConnectionCounter() {
 	var connectionCount uint64
 	unixConnectionCounter = make(chan string, 1024)
 	for {
 		connectionCount++
-		unixConnectionCounter<- fmt.Sprintf("unix:%d", connectionCount)
+		unixConnectionCounter <- fmt.Sprintf("unix:%d", connectionCount)
 	}
 }
 
+func mind_socket_accept(listener interface{}) chan net.Conn {
+	connections := make(chan net.Conn, 1024)
+	go func(l interface{}, connections chan net.Conn) {
+		var listenerType string
+		var listener net.Listener
+		switch l.(type) {
+		default:
+			log.Printf("%#v", l)
+			return
+		case *net.UnixListener:
+			listener = l.(net.Listener)
+			listenerType = "unix"
+		case *net.TCPListener:
+			listener = l.(net.Listener)
+			listenerType = "tcp"
+		}
+		for {
+			conn, err := listener.Accept()
+			// Got a connecting client Maybe
+			if err != nil {
+				println("Error accept:", err.Error())
+				continue
+			}
+			// Seems legit. Spawn a goroutine to handle this new client
+			if listenerType == "tcp" {
+				thisConn := conn.(interface{}).(*net.TCPConn)
+				connections <- thisConn
+			} else {
+				thisConn := conn.(interface{}).(*net.UnixConn)
+				connections <- thisConn
+			}
+		}
+	}(listener, connections)
+	return connections
+}
+
 func mind_socket(listener net.Listener) {
+	connections := mind_socket_accept(listener)
 	// Loop forever
 	for {
-		// Got a connecting client
-		conn, err := listener.Accept()
-		// Maybe
-		if err != nil {
-			println("Error accept:", err.Error())
-			continue
+		select {
+		case conn := <-connections:
+			go socket_client(conn)
 		}
-		// Seems legit. Spawn a goroutine to handle this new client
-		go socket_client(conn)
 	}
 }
 
 func mind_unix() {
-	if cfg_unix == "" {
+	if cfg.Unix == "" {
 		return
 	}
-	os.Remove(cfg_unix)
-	if listener, err := net.Listen("unix", cfg_unix); err != nil {
-		log.Fatalf( "UNIX SOCKET Listener Error: %+v", err );
+	os.Remove(cfg.Unix)
+	if listener, err := net.Listen("unix", cfg.Unix); err != nil {
+		log.Fatalf("UNIX SOCKET Listener Error: %+v", err)
 	} else {
-		os.Chmod(cfg_unix, 0766)
+		os.Chmod(cfg.Unix, 0766)
 		go mindUnixConnectionCounter()
 		mind_socket(listener)
 	}
 }
 
 func mind_tcp() {
-	if cfg_port == 0 {
+	if cfg.Port == 0 {
 		return
 	}
 
 	// Fire up the tcpip listening port
-	listener, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", cfg_port) )
+	listener, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", cfg.Port))
 	if err != nil {
 		// Or, you know... die...
 		println("error listening:", err.Error())
@@ -66,7 +99,7 @@ func mind_tcp() {
 	mind_socket(listener)
 }
 
-func is_valid_command( command string ) bool {
+func is_valid_command(command string) bool {
 	// Just a helper function to determine if a command is valid or not.
 	for _, ele := range commands {
 		if ele == command {
@@ -79,40 +112,29 @@ func is_valid_command( command string ) bool {
 }
 
 func socket_client(conn net.Conn) {
-	my_client := conn.RemoteAddr().String()
-	if rx_validate_remote_addr.MatchString(my_client) == false {
-		my_client = <-unixConnectionCounter
+	client := new(client)
+	client.init(conn.RemoteAddr().String())
+	if rx_validate_remote_addr.MatchString(client.me) == false {
+		client.me = <-unixConnectionCounter
 	}
-	mylocks := make(map [string] bool)
-	myshared := make(map [string] bool)
+	stats_channel <- stat_bump{stat: "connections", val: 1}
 
-	stats_channel <- stat_bump{ stat: "connections", val: 1 }
-
-	if cfg_verbose {
-		fmt.Printf( "%s connected\n", my_client )
+	if cfg.Verbose {
+		fmt.Printf("%s connected\n", client.me)
 	}
-	// The following handles orphaning locks... It only runs after the 
+	// The following handles orphaning locks... It only runs after the
 	// for true {} loop (which means on disconnect or error which are
 	// the only things that breaks it)
-	defer client_disconnected( my_client, mylocks, myshared )
+	defer client.disconnect()
 
 	// Accept commands loop
 	for true {
-
 		// Read from the client
 		buf, _, err := bufio.NewReader(conn).ReadLine()
 		if err != nil {
 			// If we got an error just exit
 			return
 		}
-
-		rsp := process_lock_client_command( lock_client_command{ buf, mylocks, myshared, my_client } )
-		mylocks = rsp.mylocks
-		myshared = rsp.myshared
-
-		// Write our response back to the client
-		_, _ = conn.Write( rsp.rsp );
-
+		conn.Write(client.command(buf))
 	}
 }
-

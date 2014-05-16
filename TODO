@@ -1,0 +1,4 @@
+* Finish zero downtime restarts
+* Add RAFT
+* Refactor code to be more idiomatic
+* Refactor code to remove copies (mainly casts between string and []byte, but possibly others)

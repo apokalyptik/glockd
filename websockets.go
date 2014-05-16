@@ -1,63 +1,44 @@
 package main
 
-import(
-	"github.com/garyburd/go-websocket/websocket"
-	"net/http"
-	"io/ioutil"
-	"os"
+import (
 	"fmt"
+	"log"
+	"net/http"
+
+	"code.google.com/p/go.net/websocket"
 )
 
-func websockets_client(w http.ResponseWriter, r *http.Request) {
-	conn, err := websocket.Upgrade(w, r.Header, nil, 1024, 1024)
-	if err != nil {
-		http.Error(w, err.Error(), 400)
-		return
-	}
-
-	mylocks := make(map [string] bool)
-	myshared := make(map [string] bool)
-	my_client := r.RemoteAddr
-
+func websockets_client(conn *websocket.Conn) {
+	client := new(client)
+	client.init(conn.Request().RemoteAddr)
 	defer conn.Close()
-	defer client_disconnected( my_client, mylocks, myshared )
+	defer client.disconnect()
 
-	stats_channel <- stat_bump{ stat: "connections", val: 1 }
-	if cfg_verbose {
-		fmt.Printf( "%s connected\n", my_client )
+	stats_channel <- stat_bump{stat: "connections", val: 1}
+	if cfg.Verbose {
+		fmt.Printf("%s connected\n", client.me)
 	}
 
 	for {
-		op, r, err := conn.NextReader()
+		var input []byte
+		err := websocket.Message.Receive(conn, &input)
 		if err != nil {
 			return
 		}
-		if op != websocket.OpBinary && op != websocket.OpText {
-			continue
-		}
-
-		buf, err := ioutil.ReadAll(r)
+		_, err = conn.Write(client.command(input))
 		if err != nil {
 			return
 		}
-
-		rsp := process_lock_client_command( lock_client_command{ buf, mylocks, myshared, my_client } )
-		mylocks = rsp.mylocks
-		myshared = rsp.myshared
-
-		conn.WriteMessage(op, rsp.rsp)
 	}
 }
 
 func mind_websockets() {
-	if cfg_ws == 0 {
+	if cfg.Ws == 0 {
 		return
 	}
-	http.HandleFunc("/", websockets_client)
-	err := http.ListenAndServe( fmt.Sprintf(":%d", cfg_ws), nil)
+	http.Handle("/", websocket.Handler(websockets_client))
+	err := http.ListenAndServe(fmt.Sprintf(":%d", cfg.Ws), nil)
 	if err != nil {
-		fmt.Printf( "HTTP Listening Error: %+v", err );
-		os.Exit(1)
+		log.Fatalf("HTTP Listening Error: %+v", err)
 	}
 }
-
