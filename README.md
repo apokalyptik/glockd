@@ -10,6 +10,11 @@ Quickest Start
 
 Use one of the precompiled glockd binaries located in the subdirectories under "builds"
 
+Docker Quick Start
+===================
+docker build -t glockd github.com/apokalyptik/glockd.git
+docker run -p 9999:9999 -p 9998:9998 glockd -dump=false -registry=false -verbose=true
+
 Quick Start
 ============
 
