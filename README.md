@@ -5,35 +5,30 @@ PHP: http://code.svn.wordpress.org/lockd/lockd-client.php
 Python: https://gist.github.com/mdawaffe/e53c86e5163b48d5fe3a
 Go: https://github.com/apokalyptik/glockc
 
-Quickest Start
-==============
-
-Use one of the precompiled glockd binaries located in the subdirectories under "builds"
-
 Docker Quick Start
 ===================
-docker build -t glockd github.com/apokalyptik/glockd.git
-docker run -p 9999:9999 -p 9998:9998 glockd -dump=false -registry=false -verbose=true
+  docker build -t glockd github.com/apokalyptik/glockd.git
+  docker run -p 9999:9999 -p 9998:9998 glockd -dump=false -registry=false -verbose=true
 
 Quick Start
 ============
 
 Option 1 (compile on demand)
 ----------------------------
-cd glockd
-go run ./*.go -pidfile my.pid -port 9999 -ws 9998
+  cd glockd
+  go run ./*.go -pidfile my.pid -port 9999 -ws 9998
 
 Option 2 (compile and then run)
 -------------------------------
-cd glockd
-go build
-./glockd --pidfile my.pid -port 9999 -ws 9998
+  cd glockd
+  go build
+  ./glockd --pidfile my.pid -port 9999 -ws 9998
 
 Quick Start Testing
 ===================
 
-cd tester
-go run test.go --host 127.0.0.1:9999
+  cd tester
+  go run test.go --host 127.0.0.1:9999
 
 Connecting to a glockd server
 =============================
