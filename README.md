@@ -5,13 +5,15 @@ PHP: http://code.svn.wordpress.org/lockd/lockd-client.php
 Python: https://gist.github.com/mdawaffe/e53c86e5163b48d5fe3a
 Go: https://github.com/apokalyptik/glockc
 
-Docker Quick Start
-===================
-  docker build -t glockd github.com/apokalyptik/glockd.git
-  docker run -p 9999:9999 -p 9998:9998 glockd -dump=false -registry=false -verbose=true
-
 Quick Start
 ============
+
+Docker Quick Start
+------------------
+```
+  docker build -t glockd github.com/apokalyptik/glockd.git
+  docker run -p 9999:9999 -p 9998:9998 glockd -dump=false -registry=false -verbose=true
+```
 
 Option 1 (compile on demand)
 ----------------------------
