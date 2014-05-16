@@ -28,5 +28,4 @@ RUN go build
 EXPOSE 9998
 EXPOSE 9999
 
-CMD ["-pidfile=/var/run/glockd.pid", "-registry=false", "-dump=false"]
-ENTRYPOINT ./glockd
+ENTRYPOINT [ "./glockd", "-pidfile=/var/run/glockd.pid" ]
