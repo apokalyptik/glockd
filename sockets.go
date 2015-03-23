@@ -49,6 +49,9 @@ func mind_socket_accept(listener interface{}) chan net.Conn {
 			// Seems legit. Spawn a goroutine to handle this new client
 			if listenerType == "tcp" {
 				thisConn := conn.(interface{}).(*net.TCPConn)
+				if err := thisConn.SetKeepAlive(true); err != nil {
+					log.Printf("Error setting keepalive on %s: %s", thisConn.RemoteAddr().String(), err.Error())
+				}
 				connections <- thisConn
 			} else {
 				thisConn := conn.(interface{}).(*net.UnixConn)
