@@ -1,8 +1,12 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"os"
 	"regexp"
 	"runtime"
@@ -31,6 +35,11 @@ type Configuration struct {
 	Registry bool
 	Dump     bool
 	Unix     string
+	SSL      bool
+	SSLCert  string
+	SSLKey   string
+	SSLCa    string
+	SSLCfg   *tls.Config
 }
 
 var cfg *Configuration
@@ -43,7 +52,11 @@ func init() {
 	flag.StringVar(&cfg.Unix, "unix", "", "Filesystem path to the unix socket to listen on.  '' Disables.")
 	flag.BoolVar(&cfg.Registry, "registry", true, "allow use of the registry.")
 	flag.BoolVar(&cfg.Dump, "dump", true, "Allow use of the dump, d, and sd commands.")
-	flag.BoolVar(&cfg.Verbose, "verbose", false, "be verbose about what's going on.")
+	flag.BoolVar(&cfg.Verbose, "verbose", false, "Be verbose about what's going on.")
+	flag.BoolVar(&cfg.SSL, "ssl", false, "Use SSL and client certificate authentication")
+	flag.StringVar(&cfg.SSLCert, "ssl-cert", "", "Use provided SSL certificate file (required for SSL)")
+	flag.StringVar(&cfg.SSLKey, "ssl-key", "", "Use the provided SSL key file (required for SSL)")
+	flag.StringVar(&cfg.SSLCa, "ssl-ca", "", "Use the provided SSL ca file (required for SSL)")
 	flag.Parse()
 }
 
@@ -60,6 +73,29 @@ func main() {
 		fmt.Printf("cfg_registry: %+v\n", cfg.Registry)
 		fmt.Printf("cfg_dump:     %+v\n", cfg.Dump)
 		fmt.Printf("cfg_verbose:  %+v\n", cfg.Verbose)
+		fmt.Printf("cfg_ssl_key:  %+v\n", cfg.SSLKey)
+		fmt.Printf("cfg_ssl_cert: %+v\n", cfg.SSLCert)
+		fmt.Printf("cfg_ssl_ca:   %+v\n", cfg.SSLCa)
+	}
+
+	if cfg.SSL {
+		caPem, err := ioutil.ReadFile(cfg.SSLCa)
+		if err != nil {
+			log.Fatal(err)
+		}
+		cert, err := tls.LoadX509KeyPair(cfg.SSLCert, cfg.SSLKey)
+		if err != nil {
+			log.Fatal(err)
+		}
+		ca := x509.NewCertPool()
+		ok := ca.AppendCertsFromPEM(caPem)
+		fmt.Println("ca.AppendCertsFromPEM", ok)
+		cfg.SSLCfg = &tls.Config{
+			Certificates:       []tls.Certificate{cert},        // Certificate to present to the connecting client
+			ClientCAs:          ca,                             // Certificate Authority to validate client certificates against
+			ClientAuth:         tls.RequireAndVerifyClientCert, // Completely validate client certificates against the ClientCAs
+			InsecureSkipVerify: false,                          // SecureDoNotSkipVerify, please
+		}
 	}
 
 	if cfg.Pid == "" {

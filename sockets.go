@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"crypto/tls"
 	"fmt"
 	"log"
 	"net"
@@ -36,8 +37,14 @@ func mind_socket_accept(listener interface{}) chan net.Conn {
 			listener = l.(net.Listener)
 			listenerType = "unix"
 		case *net.TCPListener:
-			listener = l.(net.Listener)
-			listenerType = "tcp"
+			if cfg.SSLCfg != nil {
+				ls := tls.NewListener(l.(net.Listener), cfg.SSLCfg)
+				listener = ls
+				listenerType = "tls"
+			} else {
+				listener = l.(net.Listener)
+				listenerType = "tcp"
+			}
 		}
 		for {
 			conn, err := listener.Accept()
@@ -47,13 +54,16 @@ func mind_socket_accept(listener interface{}) chan net.Conn {
 				continue
 			}
 			// Seems legit. Spawn a goroutine to handle this new client
-			if listenerType == "tcp" {
+			switch listenerType {
+			case "tcp":
 				thisConn := conn.(interface{}).(*net.TCPConn)
 				if err := thisConn.SetKeepAlive(true); err != nil {
 					log.Printf("Error setting keepalive on %s: %s", thisConn.RemoteAddr().String(), err.Error())
 				}
 				connections <- thisConn
-			} else {
+			case "tls":
+				connections <- conn
+			default:
 				thisConn := conn.(interface{}).(*net.UnixConn)
 				connections <- thisConn
 			}
@@ -91,7 +101,6 @@ func mind_tcp() {
 	if cfg.Port == 0 {
 		return
 	}
-
 	// Fire up the tcpip listening port
 	listener, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", cfg.Port))
 	if err != nil {
